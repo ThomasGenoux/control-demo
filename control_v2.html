@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Control • Firebase Realtime Demo (v2)</title>
+    <style>
+      :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji"; }
+      body { margin: 0; background: #0b1020; color: #e9ecf1; }
+      .wrap { max-width: 780px; margin: 40px auto; padding: 24px; background: #121833; border: 1px solid #2b3968; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+      h1 { margin: 0 0 8px; font-weight: 700; letter-spacing: 0.2px; }
+      p.sub { margin-top: 0; opacity: .8; }
+      .card { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; padding: 16px; background: #0d1430; border: 1px solid #263563; border-radius: 12px; }
+      label { font-size: 14px; opacity: .85; }
+      input, button { font: inherit; }
+      input[type="text"], input[type="number"] { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid #2a396b; background: #0b122b; color: #edf2ff; }
+      button { padding: 10px 14px; border-radius: 10px; border: 1px solid #314071; background: #17214a; color: #f2f6ff; cursor: pointer; }
+      button:hover { filter: brightness(1.15); }
+      .muted { opacity: .75; font-size: 14px; }
+      .status { margin-top: 10px; font-size: 14px; }
+      .ok { color: #72ffb4; }
+      .warn { color: #ffd46a; }
+      .err { color: #ff7b7b; }
+      code { background: #0c1330; padding: 3px 6px; border-radius: 6px; border: 1px solid #26325d; }
+      .grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+      @media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+      pre { background:#0b122b; border:1px solid #263563; border-radius:10px; padding:12px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Control Panel (v2)</h1>
+      <p class="sub">Mise à jour en temps réel via Firebase Realtime Database.</p>
+
+      <div class="card" style="margin-top:16px">
+        <div>
+          <div class="muted">Statut</div>
+          <div id="authState">Déconnecté</div>
+        </div>
+        <div>
+          <button id="btnSignIn">Se connecter</button>
+          <button id="btnSignOut" style="display:none">Se déconnecter</button>
+        </div>
+      </div>
+
+      <h2 style="margin:24px 0 8px">Variables contrôlées</h2>
+      <div class="grid">
+        <div class="card">
+          <div>
+            <label for="gain">Gain</label>
+            <input id="gain" type="text" value="1.0" />
+            <div class="status" id="gainStatus"></div>
+          </div>
+          <button id="gainSave">Enregistrer</button>
+        </div>
+        <div class="card">
+          <div>
+            <label for="mode">Mode</label>
+            <input id="mode" type="text" value="idle" />
+            <div class="status" id="modeStatus"></div>
+          </div>
+          <button id="modeSave">Enregistrer</button>
+        </div>
+      </div>
+
+      <h2 style="margin:24px 0 8px">Valeurs en direct</h2>
+      <div class="card">
+        <div style="grid-column: 1 / -1;">
+          <div class="muted">Chemin <code>/control</code></div>
+          <pre id="live">⏳ En attente des données...</pre>
+          <div id="liveErr" class="status err"></div>
+        </div>
+      </div>
+
+      <p class="muted" style="margin-top:24px">
+        Remplacez la config Firebase ci-dessous puis ouvrez cette page dans deux onglets.
+        Modifiez une valeur pour voir la mise à jour en temps réel.
+      </p>
+    </div>
+
+    <!-- Firebase (modulaire) -->
+    <script type="module">
+      // 1) REMPLACEZ par votre config de projet Firebase (Paramètres du projet > Vos applications > SDK Web)
+      const firebaseConfig = {
+        apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
+  authDomain: "control-panel-demo-59d4a.firebaseapp.com",
+  databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "control-panel-demo-59d4a",
+  storageBucket: "control-panel-demo-59d4a.appspot.com",
+  messagingSenderId: "1083381420391",
+  appId: "1:1083381420391:web:0d042a134004655a40dfc2",
+  measurementId: "G-CKXT2SWQVW"
+      };
+
+      // 2) Imports SDK
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+      import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+      import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+      // 3) Init
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getDatabase(app);
+
+      // 4) Elements
+      const authState = document.getElementById('authState');
+      const btnIn = document.getElementById('btnSignIn');
+      const btnOut = document.getElementById('btnSignOut');
+      const live = document.getElementById('live');
+      const liveErr = document.getElementById('liveErr');
+
+      const gainInput = document.getElementById('gain');
+      const gainSave = document.getElementById('gainSave');
+      const gainStatus = document.getElementById('gainStatus');
+
+      const modeInput = document.getElementById('mode');
+      const modeSave = document.getElementById('modeSave');
+      const modeStatus = document.getElementById('modeStatus');
+
+      // 5) Auth (Google popup)
+      const provider = new GoogleAuthProvider();
+      btnIn.addEventListener('click', async () => {
+        try { await signInWithPopup(auth, provider); }
+        catch (e) { console.error(e); alert('Connexion échouée: ' + e.message); }
+      });
+      btnOut.addEventListener('click', () => signOut(auth));
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          authState.textContent = `Connecté en tant que ${user.displayName || user.email}`;
+          btnIn.style.display = 'none'; btnOut.style.display = 'inline-block';
+        } else {
+          authState.textContent = 'Déconnecté';
+          btnIn.style.display = 'inline-block'; btnOut.style.display = 'none';
+        }
+      });
+
+      // 6) Listeners temps réel sur /control (avec gestion d'erreur)
+      const controlRef = ref(db, 'control');
+      onValue(controlRef, (snap) => {
+        const val = snap.val();
+        if (val === null) {
+          live.textContent = '∅ (aucune donnée)';
+        } else {
+          live.textContent = JSON.stringify(val, null, 2);
+          if (typeof val.gain === 'number') gainInput.value = String(val.gain).replace('.', ',');
+          if (typeof val.mode === 'string') modeInput.value = val.mode;
+        }
+        liveErr.textContent = '';
+      }, (error) => {
+        console.error('onValue error:', error);
+        liveErr.textContent = 'Lecture refusée: ' + (error.code || error.message);
+      });
+
+      // 7) Ecritures fusionnées (update) + virgule décimale acceptée
+      async function writeControl(partial) {
+        const user = auth.currentUser;
+        if (!user) { alert('Connectez-vous pour modifier.'); return; }
+        const payload = { ...partial, _lastBy: user.uid, _at: Date.now() };
+        await update(controlRef, payload);
+      }
+
+      gainSave.addEventListener('click', async () => {
+        try {
+          const txt = String(gainInput.value).trim().replace(',', '.');
+          const gain = parseFloat(txt);
+          if (!isFinite(gain)) throw new Error('Valeur de gain invalide');
+          await writeControl({ gain });
+          gainStatus.textContent = '✔ Sauvegardé'; gainStatus.className = 'status ok';
+          setTimeout(()=>{ gainStatus.textContent=''; }, 1500);
+        } catch (e) {
+          console.error(e);
+          gainStatus.textContent = 'Erreur: ' + e.message; gainStatus.className = 'status err';
+        }
+      });
+
+      modeSave.addEventListener('click', async () => {
+        try {
+          const mode = String(modeInput.value || '');
+          await writeControl({ mode });
+          modeStatus.textContent = '✔ Sauvegardé'; modeStatus.className = 'status ok';
+          setTimeout(()=>{ modeStatus.textContent=''; }, 1500);
+        } catch (e) {
+          console.error(e);
+          modeStatus.textContent = 'Erreur: ' + e.message; modeStatus.className = 'status err';
+        }
+      });
+    </script>
+  </body>
+</html>

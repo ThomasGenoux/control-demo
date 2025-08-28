@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scope • Live Viewer</title>
+    <style>
+      :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; }
+      body { margin: 0; background: #0b1020; color: #e9ecf1; }
+      .wrap { max-width: 820px; margin: 40px auto; padding: 24px; background: #121833; border: 1px solid #2b3968; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+      h1 { margin: 0 0 8px; }
+      .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+      .card { padding: 16px; background: #0d1430; border: 1px solid #263563; border-radius: 12px; margin-top: 16px; }
+      .muted { opacity: .8; font-size: 14px; }
+      .gauge { height: 20px; background: #0b122b; border: 1px solid #263563; border-radius: 10px; overflow: hidden; }
+      .gauge > div { height: 100%; background: linear-gradient(90deg,#4ade80,#22d3ee); width: 0%; transition: width .25s ease; }
+      .big { font-size: 52px; font-weight: 700; letter-spacing: .3px; }
+      code { background: #0c1330; padding: 2px 6px; border-radius: 6px; border: 1px solid #26325d; }
+      pre { background:#0b122b; border:1px solid #263563; border-radius:10px; padding:12px; white-space: pre-wrap; }
+      button { padding: 8px 12px; border-radius: 10px; border: 1px solid #314071; background: #17214a; color: #f2f6ff; cursor: pointer; }
+      button:hover { filter: brightness(1.1); }
+      .err { color: #ff7b7b; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="row">
+        <h1>Scope • Live Viewer</h1>
+        <div>
+          <button id="btnSignIn" style="display:none">Se connecter</button>
+          <button id="btnSignOut" style="display:none">Se déconnecter</button>
+        </div>
+      </div>
+      <div class="muted">Lis en direct <code>/control</code> dans Firebase Realtime Database.</div>
+
+      <div class="card">
+        <div class="muted">Mode</div>
+        <div class="big" id="mode">—</div>
+      </div>
+
+      <div class="card">
+        <div class="muted">Gain</div>
+        <div class="gauge"><div id="bar"></div></div>
+        <div id="gainText" style="margin-top:8px">—</div>
+      </div>
+
+      <div class="card">
+        <div class="muted">Brut</div>
+        <pre id="raw">⏳ En attente…</pre>
+        <div id="err" class="err"></div>
+      </div>
+    </div>
+
+    <script type="module">
+      // ⚠️ Remplace par TA config (la même que control.html)
+      const firebaseConfig = {
+        apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
+  authDomain: "control-panel-demo-59d4a.firebaseapp.com",
+  databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "control-panel-demo-59d4a",
+  storageBucket: "control-panel-demo-59d4a.appspot.com",
+  messagingSenderId: "1083381420391",
+  appId: "1:1083381420391:web:0d042a134004655a40dfc2",
+  measurementId: "G-CKXT2SWQVW"
+      };
+
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+      import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+      import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+      const app = initializeApp(firebaseConfig);
+      const db = getDatabase(app);
+      const auth = getAuth(app);
+
+      const btnIn = document.getElementById('btnSignIn');
+      const btnOut = document.getElementById('btnSignOut');
+
+      // Si tes règles exigent une auth pour .read, on affiche les boutons
+      onAuthStateChanged(auth, (user) => {
+        if (user) { btnIn.style.display='none'; btnOut.style.display='inline-block'; }
+        else { btnIn.style.display='inline-block'; btnOut.style.display='none'; }
+      });
+
+      const provider = new GoogleAuthProvider();
+      btnIn?.addEventListener('click', ()=>signInWithPopup(auth, provider));
+      btnOut?.addEventListener('click', ()=>signOut(auth));
+
+      const modeEl = document.getElementById('mode');
+      const bar = document.getElementById('bar');
+      const gainText = document.getElementById('gainText');
+      const raw = document.getElementById('raw');
+      const err = document.getElementById('err');
+
+      const controlRef = ref(db, 'control');
+      onValue(controlRef, (snap) => {
+        const val = snap.val();
+        if (val === null) {
+          raw.textContent = '∅ (aucune donnée)';
+          modeEl.textContent = '—';
+          bar.style.width = '0%';
+          gainText.textContent = '—';
+          return;
+        }
+        raw.textContent = JSON.stringify(val, null, 2);
+        // Mode
+        modeEl.textContent = typeof val.mode === 'string' ? val.mode : '—';
+        // Gain (visualise sur 0 → 5)
+        const g = typeof val.gain === 'number' ? val.gain : 0;
+        const pct = Math.max(0, Math.min(100, Math.round((g/5)*100)));
+        bar.style.width = pct + '%';
+        gainText.textContent = 'Gain: ' + String(g).replace('.', ',');
+        err.textContent = '';
+      }, (e) => {
+        err.textContent = 'Lecture refusée: ' + (e.code || e.message);
+      });
+    </script>
+  </body>
+</html>
