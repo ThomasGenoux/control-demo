@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control Vitals • Pro</title>
+  <style>
+    :root {
+      --bg: #0b0f16;
+      --panel: #10141f;
+      --border: #1c2434;
+      --text: #e9eef6;
+      --muted: #96a0b5;
+      --green: #31f39a;
+      --blue:  #61b5ff;
+      --yellow:#f6cf55;
+      --danger:#ff7b7b;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; }
+    .wrap { max-width: 980px; margin: 28px auto; padding: 12px; }
+    .topbar { display:flex; justify-content: space-between; align-items:center; margin-bottom: 14px; }
+    .title { font-size: 18px; color: var(--muted); }
+    .btn { padding:10px 14px; border-radius: 10px; border:1px solid var(--border); background: #12182a; color:var(--text); cursor:pointer; }
+    .btn:hover { filter:brightness(1.1); }
+    .panel { background: var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px; }
+    .grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+    @media (max-width: 820px){ .grid { grid-template-columns: 1fr; } }
+    .card { background:#0d131f; border:1px solid var(--border); border-radius:12px; padding:14px; }
+    label { font-size: 14px; color: var(--muted); display:block; margin-bottom:6px; }
+    input { width:100%; padding:12px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:var(--text); }
+    .row { display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:center; }
+    .status { font-size: 14px; margin-top: 6px; }
+    .ok { color: #72ffb4; } .err { color: var(--danger); }
+    .muted { color: var(--muted); }
+    .chips { display:flex; gap:10px; flex-wrap: wrap; margin-top:10px; }
+    .chip { padding:8px 10px; background:#121b2e; border:1px solid var(--border); border-radius: 999px; cursor:pointer; }
+    .chip:hover { filter:brightness(1.1); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">Contrôle en temps réel de <code>/control</code> (Firebase)</div>
+      <div>
+        <button id="btnIn" class="btn" style="display:none">Se connecter</button>
+        <button id="btnOut" class="btn" style="display:none">Se déconnecter</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="grid">
+        <div class="card">
+          <label>Pouls (HR, bpm)</label>
+          <div class="row">
+            <input id="hr" type="number" min="0" max="240" step="1" value="76">
+            <button id="hrSave" class="btn">Enregistrer</button>
+          </div>
+          <div id="hrStatus" class="status"></div>
+        </div>
+        <div class="card">
+          <label>SpO₂ (%)</label>
+          <div class="row">
+            <input id="spo2" type="number" min="0" max="100" step="1" value="98">
+            <button id="spo2Save" class="btn">Enregistrer</button>
+          </div>
+          <div id="spo2Status" class="status"></div>
+        </div>
+        <div class="card">
+          <label>FR (rpm)</label>
+          <div class="row">
+            <input id="rr" type="number" min="0" max="60" step="1" value="16">
+            <button id="rrSave" class="btn">Enregistrer</button>
+          </div>
+          <div id="rrStatus" class="status"></div>
+        </div>
+        <div class="card">
+          <label>NIBP (mmHg)</label>
+          <div class="row">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <input id="bpSys" type="number" min="0" max="260" step="1" value="120" placeholder="SYS">
+              <input id="bpDia" type="number" min="0" max="200" step="1" value="70" placeholder="DIA">
+            </div>
+            <button id="bpSave" class="btn">Enregistrer</button>
+          </div>
+          <div id="bpStatus" class="status"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="title" style="margin-bottom:8px">Actions</div>
+      <div class="chips">
+        <div class="chip" id="flatOn">Courbes plates (0)</div>
+        <div class="chip" id="flatOff">Reprise courbes</div>
+        <div class="chip" id="presetStable">Preset: Stable</div>
+        <div class="chip" id="presetTachy">Preset: Tachy</div>
+      </div>
+      <div id="actionsStatus" class="status"></div>
+    </div>
+
+    <div class="panel">
+      <div class="muted">Aperçu brut de <code>/control</code></div>
+      <pre id="live" style="background:#0b1220; border:1px solid var(--border); border-radius:10px; padding:12px; white-space:pre-wrap; margin-top:6px;">⏳ En attente…</pre>
+      <div id="liveErr" class="status err"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    // 1) Config Firebase (à remplacer)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
+  authDomain: "control-panel-demo-59d4a.firebaseapp.com",
+  databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "control-panel-demo-59d4a",
+  storageBucket: "control-panel-demo-59d4a.appspot.com",
+  messagingSenderId: "1083381420391",
+  appId: "1:1083381420391:web:0d042a134004655a40dfc2",
+  measurementId: "G-CKXT2SWQVW"
+    };
+
+    // 2) Imports Firebase
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    // 3) Auth UI
+    const btnIn = document.getElementById('btnIn');
+    const btnOut = document.getElementById('btnOut');
+    const live = document.getElementById('live');
+    const liveErr = document.getElementById('liveErr');
+    const actionsStatus = document.getElementById('actionsStatus');
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) { btnIn.style.display='none'; btnOut.style.display='inline-block'; }
+      else { btnIn.style.display='inline-block'; btnOut.style.display='none'; }
+    });
+    const provider = new GoogleAuthProvider();
+    btnIn.addEventListener('click', async () => {
+      try { await signInWithPopup(auth, provider); }
+      catch (e) {
+        // Fallback redirect si popup bloquée
+        if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
+          try { await signInWithRedirect(auth, provider); } catch (er) { alert(er.code + ': ' + er.message); }
+        } else {
+          alert(e.code + ': ' + e.message);
+        }
+      }
+    });
+    btnOut.addEventListener('click', ()=>signOut(auth));
+    getRedirectResult(auth).catch(e => { if (e) alert(e.code + ': ' + e.message); });
+
+    // 4) Refs champs
+    const ctrlRef = ref(db, 'control');
+    const el = (id)=>document.getElementById(id);
+    const hr = el('hr'), rr = el('rr'), spo2 = el('spo2'), bpSys = el('bpSys'), bpDia = el('bpDia');
+    const hrStatus = el('hrStatus'), rrStatus = el('rrStatus'), spo2Status = el('spo2Status'), bpStatus = el('bpStatus');
+
+    // 5) Ecrire fusionné
+    async function write(partial, statusEl){
+      const user = auth.currentUser;
+      if (!user) { alert('Connectez-vous.'); return; }
+      await update(ctrlRef, { ...partial, _lastBy: user.uid, _at: Date.now() });
+      if (statusEl){ statusEl.textContent = '✔ Sauvegardé'; statusEl.className='status ok'; setTimeout(()=> statusEl.textContent='', 1200); }
+    }
+
+    // 6) Boutons enregistrer
+    el('hrSave').addEventListener('click', ()=>{
+      let v = parseInt(hr.value, 10); v = Math.max(0, Math.min(240, isFinite(v)?v:0));
+      write({ hr: v }, hrStatus);
+    });
+    el('rrSave').addEventListener('click', ()=>{
+      let v = parseInt(rr.value, 10); v = Math.max(0, Math.min(60, isFinite(v)?v:0));
+      write({ rr: v }, rrStatus);
+    });
+    el('spo2Save').addEventListener('click', ()=>{
+      let v = parseInt(spo2.value, 10); v = Math.max(0, Math.min(100, isFinite(v)?v:0));
+      write({ spo2: v }, spo2Status);
+    });
+    el('bpSave').addEventListener('click', ()=>{
+      let s = parseInt(bpSys.value, 10); let d = parseInt(bpDia.value, 10);
+      s = Math.max(0, Math.min(260, isFinite(s)?s:0));
+      d = Math.max(0, Math.min(200, isFinite(d)?d:0));
+      write({ bpSys: s, bpDia: d }, bpStatus);
+    });
+
+    // 7) Actions (flat on/off + presets)
+    el('flatOn').addEventListener('click', ()=> write({ flat: true }, actionsStatus));
+    el('flatOff').addEventListener('click', ()=> write({ flat: false }, actionsStatus));
+    el('presetStable').addEventListener('click', ()=> write({ hr: 76, rr: 16, spo2: 98, bpSys: 120, bpDia: 70, flat: false }, actionsStatus));
+    el('presetTachy').addEventListener('click', ()=> write({ hr: 130, rr: 24, spo2: 95, bpSys: 110, bpDia: 65, flat: false }, actionsStatus));
+
+    // 8) Lecture pour refléter les champs
+    onValue(ctrlRef, (snap)=>{
+      const v = snap.val() || {};
+      live.textContent = JSON.stringify(v, null, 2);
+      if (typeof v.hr === 'number') hr.value = v.hr;
+      if (typeof v.rr === 'number') rr.value = v.rr;
+      if (typeof v.spo2 === 'number') spo2.value = v.spo2;
+      if (typeof v.bpSys === 'number') bpSys.value = v.bpSys;
+      if (typeof v.bpDia === 'number') bpDia.value = v.bpDia;
+      liveErr.textContent = '';
+    }, (e)=>{
+      liveErr.textContent = 'Lecture refusée: ' + (e.code || e.message);
+    });
+  </script>
+</body>
+</html>

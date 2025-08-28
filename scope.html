@@ -1,60 +1,113 @@
 <!doctype html>
 <html lang="fr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Scope • Live Viewer</title>
-    <style>
-      :root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; }
-      body { margin: 0; background: #0b1020; color: #e9ecf1; }
-      .wrap { max-width: 820px; margin: 40px auto; padding: 24px; background: #121833; border: 1px solid #2b3968; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
-      h1 { margin: 0 0 8px; }
-      .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
-      .card { padding: 16px; background: #0d1430; border: 1px solid #263563; border-radius: 12px; margin-top: 16px; }
-      .muted { opacity: .8; font-size: 14px; }
-      .gauge { height: 20px; background: #0b122b; border: 1px solid #263563; border-radius: 10px; overflow: hidden; }
-      .gauge > div { height: 100%; background: linear-gradient(90deg,#4ade80,#22d3ee); width: 0%; transition: width .25s ease; }
-      .big { font-size: 52px; font-weight: 700; letter-spacing: .3px; }
-      code { background: #0c1330; padding: 2px 6px; border-radius: 6px; border: 1px solid #26325d; }
-      pre { background:#0b122b; border:1px solid #263563; border-radius:10px; padding:12px; white-space: pre-wrap; }
-      button { padding: 8px 12px; border-radius: 10px; border: 1px solid #314071; background: #17214a; color: #f2f6ff; cursor: pointer; }
-      button:hover { filter: brightness(1.1); }
-      .err { color: #ff7b7b; }
-    </style>
-  </head>
-  <body>
-    <div class="wrap">
-      <div class="row">
-        <h1>Scope • Live Viewer</h1>
-        <div>
-          <button id="btnSignIn" style="display:none">Se connecter</button>
-          <button id="btnSignOut" style="display:none">Se déconnecter</button>
-        </div>
-      </div>
-      <div class="muted">Lis en direct <code>/control</code> dans Firebase Realtime Database.</div>
-
-      <div class="card">
-        <div class="muted">Mode</div>
-        <div class="big" id="mode">—</div>
-      </div>
-
-      <div class="card">
-        <div class="muted">Gain</div>
-        <div class="gauge"><div id="bar"></div></div>
-        <div id="gainText" style="margin-top:8px">—</div>
-      </div>
-
-      <div class="card">
-        <div class="muted">Brut</div>
-        <pre id="raw">⏳ En attente…</pre>
-        <div id="err" class="err"></div>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Scope Vitals • Pro (slow)</title>
+  <style>
+    :root {
+      --bg: #0b0f16;
+      --panel: #10141f;
+      --panel2: #0d111a;
+      --border: #1c2434;
+      --text: #e9eef6;
+      --muted: #96a0b5;
+      --green: #31f39a;
+      --blue:  #61b5ff;
+      --yellow:#f6cf55;
+      --danger:#ff7b7b;
+    }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; }
+    .wrap { max-width: 1280px; margin: 24px auto; padding: 12px; }
+    .rowScope { display:grid; grid-template-columns: 1fr 260px; gap: 12px; margin-bottom: 12px; }
+    .scopePanel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 10px; }
+    .tile { background: var(--panel); border:1px solid var(--border); border-radius:14px; padding: 14px; display:flex; flex-direction:column; justify-content:center; }
+    .tile h4 { margin: 0 0 6px; font-weight: 600; color: var(--muted); letter-spacing: .3px; }
+    .tile .big { font-size: 56px; font-weight: 800; line-height: 1; }
+    .tile .unit { color: var(--muted); margin-top: 2px; font-size: 14px; }
+    canvas { width: 100%; height: 170px; display:block; background: #05090f; border-radius: 10px; }
+    .foot { display:grid; grid-template-columns: 1fr 320px; gap: 12px; margin-top: 12px; }
+    .bpBox, .clockBox {
+      background: var(--panel); border:1px solid var(--border); border-radius: 14px; padding: 16px;
+    }
+    .bpLabel { color: var(--muted); font-size: 14px; margin-bottom: 4px; letter-spacing:.3px;}
+    .bpValue { font-size: 54px; font-weight: 900; }
+    .clockTime { font-size: 36px; font-weight: 800; }
+    .small { color: var(--muted); font-size: 14px; }
+    .topbar { display:flex; justify-content: space-between; align-items:center; margin: 6px 4px 14px; }
+    .title { font-size: 18px; color: var(--muted); }
+    .btn { padding:8px 12px; border-radius: 10px; border:1px solid var(--border); background: #12182a; color:var(--text); cursor:pointer; }
+    .btn:hover { filter:brightness(1.1); }
+    .warn { color: var(--danger); font-weight: 600; }
+    @media (max-width: 980px){
+      .rowScope { grid-template-columns: 1fr; }
+      .foot { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">Lecture en direct de <code>/control</code> (Firebase)</div>
+      <div>
+        <button id="btnIn" class="btn" style="display:none">Se connecter</button>
+        <button id="btnOut" class="btn" style="display:none">Se déconnecter</button>
       </div>
     </div>
 
-    <script type="module">
-      // ⚠️ Remplace par TA config (la même que control.html)
-      const firebaseConfig = {
-        apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
+    <!-- ECG -->
+    <div class="rowScope">
+      <div class="scopePanel"><canvas id="ecg"></canvas></div>
+      <div class="tile">
+        <h4>HR</h4>
+        <div class="big" id="hrVal" style="color:var(--green)">—</div>
+        <div class="unit">bpm</div>
+      </div>
+    </div>
+
+    <!-- Pleth / SpO2 -->
+    <div class="rowScope">
+      <div class="scopePanel"><canvas id="pleth"></canvas></div>
+      <div class="tile">
+        <h4>SpO₂</h4>
+        <div class="big" id="spo2Val" style="color:var(--blue)">—</div>
+        <div class="unit">%</div>
+      </div>
+    </div>
+
+    <!-- Respiration -->
+    <div class="rowScope">
+      <div class="scopePanel"><canvas id="resp"></canvas></div>
+      <div class="tile">
+        <h4>FR</h4>
+        <div class="big" id="rrVal" style="color:var(--yellow)">—</div>
+        <div class="unit">rpm</div>
+      </div>
+    </div>
+
+    <!-- Bottom -->
+    <div class="foot">
+      <div class="bpBox">
+        <div class="bpLabel">NIBP</div>
+        <div class="bpValue"><span id="bpSys">—</span> / <span id="bpDia">—</span></div>
+        <div class="small">mmHg</div>
+      </div>
+      <div class="clockBox">
+        <div>
+          <div class="small">Horodatage</div>
+          <div class="clockTime" id="clock">--:--:--</div>
+          <div class="small">local time</div>
+        </div>
+        <div id="err" class="small warn" style="max-width: 55%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // 1) Config Firebase (à remplacer)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
   authDomain: "control-panel-demo-59d4a.firebaseapp.com",
   databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "control-panel-demo-59d4a",
@@ -62,57 +115,180 @@
   messagingSenderId: "1083381420391",
   appId: "1:1083381420391:web:0d042a134004655a40dfc2",
   measurementId: "G-CKXT2SWQVW"
-      };
+    };
 
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-      import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-      import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    // 2) Imports Firebase
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
-      const app = initializeApp(firebaseConfig);
-      const db = getDatabase(app);
-      const auth = getAuth(app);
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
 
-      const btnIn = document.getElementById('btnSignIn');
-      const btnOut = document.getElementById('btnSignOut');
+    // 3) UI refs
+    const btnIn = document.getElementById('btnIn');
+    const btnOut = document.getElementById('btnOut');
+    const errEl = document.getElementById('err');
+    const hrVal = document.getElementById('hrVal');
+    const spo2Val = document.getElementById('spo2Val');
+    const rrVal = document.getElementById('rrVal');
+    const bpSysEl = document.getElementById('bpSys');
+    const bpDiaEl = document.getElementById('bpDia');
+    const clockEl = document.getElementById('clock');
 
-      // Si tes règles exigent une auth pour .read, on affiche les boutons
-      onAuthStateChanged(auth, (user) => {
-        if (user) { btnIn.style.display='none'; btnOut.style.display='inline-block'; }
-        else { btnIn.style.display='inline-block'; btnOut.style.display='none'; }
-      });
+    onAuthStateChanged(auth, (user) => {
+      if (user) { btnIn.style.display='none'; btnOut.style.display='inline-block'; }
+      else { btnIn.style.display='inline-block'; btnOut.style.display='none'; }
+    });
 
-      const provider = new GoogleAuthProvider();
-      btnIn?.addEventListener('click', ()=>signInWithPopup(auth, provider));
-      btnOut?.addEventListener('click', ()=>signOut(auth));
-
-      const modeEl = document.getElementById('mode');
-      const bar = document.getElementById('bar');
-      const gainText = document.getElementById('gainText');
-      const raw = document.getElementById('raw');
-      const err = document.getElementById('err');
-
-      const controlRef = ref(db, 'control');
-      onValue(controlRef, (snap) => {
-        const val = snap.val();
-        if (val === null) {
-          raw.textContent = '∅ (aucune donnée)';
-          modeEl.textContent = '—';
-          bar.style.width = '0%';
-          gainText.textContent = '—';
-          return;
+    const provider = new GoogleAuthProvider();
+    btnIn.addEventListener('click', async () => {
+      try { await signInWithPopup(auth, provider); }
+      catch (e) {
+        // Fallback si popup bloquée
+        if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
+          try { await signInWithRedirect(auth, provider); } catch (er) { errEl.textContent = er.code + ': ' + er.message; }
+        } else {
+          errEl.textContent = e.code + ': ' + e.message;
         }
-        raw.textContent = JSON.stringify(val, null, 2);
-        // Mode
-        modeEl.textContent = typeof val.mode === 'string' ? val.mode : '—';
-        // Gain (visualise sur 0 → 5)
-        const g = typeof val.gain === 'number' ? val.gain : 0;
-        const pct = Math.max(0, Math.min(100, Math.round((g/5)*100)));
-        bar.style.width = pct + '%';
-        gainText.textContent = 'Gain: ' + String(g).replace('.', ',');
-        err.textContent = '';
-      }, (e) => {
-        err.textContent = 'Lecture refusée: ' + (e.code || e.message);
-      });
-    </script>
-  </body>
+      }
+    });
+    btnOut.addEventListener('click', ()=>signOut(auth));
+
+    // Complète une auth par redirection s'il y en a une
+    getRedirectResult(auth).catch(e => { if (e) errEl.textContent = e.code + ': ' + e.message; });
+
+    // 4) Données
+    const data = { hr: 76, spo2: 98, rr: 16, bpSys: 120, bpDia: 70, flat: false };
+    function applyVitals(v){
+      if (typeof v.hr === 'number')    data.hr = v.hr;
+      if (typeof v.spo2 === 'number')  data.spo2 = v.spo2;
+      if (typeof v.rr === 'number')    data.rr = v.rr;
+      if (typeof v.bpSys === 'number') data.bpSys = v.bpSys;
+      if (typeof v.bpDia === 'number') data.bpDia = v.bpDia;
+      if (typeof v.flat === 'boolean') data.flat = v.flat;
+      // UI
+      const show0 = data.flat === true;
+      hrVal.textContent = show0 ? 0 : Math.round(data.hr);
+      spo2Val.textContent = show0 ? 0 : Math.round(data.spo2);
+      rrVal.textContent = show0 ? 0 : Math.round(data.rr);
+      bpSysEl.textContent = show0 ? 0 : (data.bpSys ?? '—');
+      bpDiaEl.textContent = show0 ? 0 : (data.bpDia ?? '—');
+    }
+
+    onValue(ref(db, 'control'), (snap) => {
+      applyVitals(snap.val() || {});
+      errEl.textContent = '';
+    }, (e) => {
+      errEl.textContent = 'Lecture refusée: ' + (e.code || e.message);
+    });
+
+    // 5) Canvas helpers
+    function makeCanvas(id){
+      const c = document.getElementById(id);
+      const ctx = c.getContext('2d');
+      function resize(){
+        const ratio = window.devicePixelRatio || 1;
+        const w = c.clientWidth, h = c.clientHeight;
+        c.width = Math.max(1, Math.floor(w * ratio));
+        c.height = Math.max(1, Math.floor(h * ratio));
+        ctx.setTransform(ratio,0,0,ratio,0,0);
+      }
+      resize();
+      window.addEventListener('resize', resize);
+      return { c, ctx };
+    }
+
+    const ecg = makeCanvas('ecg');
+    const pleth = makeCanvas('pleth');
+    const resp = makeCanvas('resp');
+
+    // 6) Dessin des courbes (défilement plus lent + mode flat)
+    let t = 0, last = performance.now();
+    const SPEED = 0.18; // <-- défilement doux (0.18x la vitesse)
+
+    function drawECG(dt){
+      const { c, ctx } = ecg;
+      const w = c.clientWidth, h = c.clientHeight;
+      ctx.clearRect(0,0,w,h);
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--green').trim();
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const hz = (data.hr || 60) / 60;
+      const spikeWidth = 0.02;
+      for(let x=0; x<w; x++){
+        const tt = t*SPEED + x / w;
+        const phase = (hz*tt) % 1;
+        let y = 0;
+        if (!data.flat){
+          y += 0.02*Math.sin(2*Math.PI*8*tt);
+          y += 0.06*Math.exp(-Math.pow((phase-0.18)/0.03, 2));
+          y += 1.5*Math.exp(-Math.pow((phase-0.25)/spikeWidth, 2)) - 0.25*Math.exp(-Math.pow((phase-0.24)/0.01,2));
+          y += 0.2*Math.exp(-Math.pow((phase-0.5)/0.09,2));
+        }
+        const yy = h*0.5 - y * (h*0.35);
+        if (x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+      }
+      ctx.stroke();
+    }
+
+    function drawPleth(dt){
+      const { c, ctx } = pleth;
+      const w = c.clientWidth, h = c.clientHeight;
+      ctx.clearRect(0,0,w,h);
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--blue').trim();
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const hz = (data.hr || 60) / 60;
+      for(let x=0; x<w; x++){
+        const tt = t*SPEED + x / w;
+        const phase = (hz*tt) % 1;
+        let y = 0.5;
+        if (!data.flat){
+          if (phase < 0.15) y = 0.5 + (phase / 0.15 - 0.5);
+          else { const d = (phase - 0.15) / 0.85; y = 0.5 + Math.exp(-4*d) - 0.5; }
+        }
+        const yy = h*0.5 - (y-0.5) * (h*0.6);
+        if (x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+      }
+      ctx.stroke();
+    }
+
+    function drawResp(dt){
+      const { c, ctx } = resp;
+      const w = c.clientWidth, h = c.clientHeight;
+      ctx.clearRect(0,0,w,h);
+      ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--yellow').trim();
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      const hz = (data.rr || 12) / 60;
+      for(let x=0; x<w; x++){
+        const tt = t*SPEED + x / w;
+        let y = data.flat ? 0 : Math.sin(2*Math.PI*hz*tt);
+        const yy = h*0.5 - y * (h*0.4);
+        if (x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+      }
+      ctx.stroke();
+    }
+
+    function loop(now){
+      const dt = (now - last)/1000;
+      last = now;
+      t += dt;
+      drawECG(dt);
+      drawPleth(dt);
+      drawResp(dt);
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+
+    // Horloge locale
+    function pad(n){ return String(n).padStart(2,'0'); }
+    setInterval(()=>{
+      const d = new Date();
+      clockEl.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }, 200);
+  </script>
+</body>
 </html>
