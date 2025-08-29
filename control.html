@@ -1,44 +1,37 @@
 <!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Control Vitals • Pro (audio + voix)</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Control Vitals • Pro</title>
   <style>
-    :root {
-      --bg: #0b0f16;
-      --panel: #10141f;
-      --border: #1c2434;
-      --text: #e9eef6;
-      --muted: #96a0b5;
-    }
-    * { box-sizing: border-box; }
-    body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial; }
-    .wrap { max-width: 980px; margin: 28px auto; padding: 12px; }
-    .topbar { display:flex; justify-content: space-between; align-items:center; margin-bottom: 14px; }
-    .title { font-size: 18px; color: var(--muted); }
-    .btn { padding:10px 14px; border-radius: 10px; border:1px solid var(--border); background: #12182a; color:var(--text); cursor:pointer; }
-    .btn:hover { filter:brightness(1.1); }
-    .panel { background: var(--panel); border:1px solid var(--border); border-radius:14px; padding:16px; margin-bottom:12px; }
-    .grid { display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
-    @media (max-width: 820px){ .grid { grid-template-columns: 1fr; } }
-    .card { background:#0d131f; border:1px solid var(--border); border-radius:12px; padding:14px; }
-    label { font-size: 14px; color: var(--muted); display:block; margin-bottom:6px; }
-    input { width:100%; padding:12px; border-radius:10px; border:1px solid var(--border); background:#0b1220; color:var(--text); }
-    .row { display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:center; }
-    .status { font-size: 14px; margin-top: 6px; }
-    .ok { color: #72ffb4; } .err { color: #ff7b7b; }
-    .muted { color: var(--muted); }
-    .chips { display:flex; gap:10px; flex-wrap: wrap; margin-top:10px; }
-    .chip { padding:8px 10px; background:#121b2e; border:1px solid var(--border); border-radius: 999px; cursor:pointer; }
-    .chip:hover { filter:brightness(1.1); }
+    :root { --bg:#0b0f16; --panel:#10141f; --border:#1c2434; --text:#e9eef6; --muted:#96a0b5; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+    .wrap{max-width:980px;margin:28px auto;padding:12px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+    .title{font-size:18px;color:var(--muted)}
+    .btn{padding:10px 14px;border-radius:10px;border:1px solid var(--border);background:#12182a;color:var(--text);cursor:pointer}
+    .btn:hover{filter:brightness(1.1)}
+    .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    @media (max-width:820px){.grid{grid-template-columns:1fr}}
+    .card{background:#0d131f;border:1px solid var(--border);border-radius:12px;padding:14px}
+    label{font-size:14px;color:var(--muted);display:block;margin-bottom:6px}
+    input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);background:#0b1220;color:var(--text)}
+    .row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+    .status{font-size:14px;margin-top:6px}.ok{color:#72ffb4}.err{color:#ff7b7b}.muted{color:var(--muted)}
+    .chips{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    .chip{padding:8px 10px;background:#121b2e;border:1px solid var(--border);border-radius:999px;cursor:pointer}
+    .chip:hover{filter:brightness(1.1)}
+    pre{background:#0b1220;border:1px solid var(--border);border-radius:10px;padding:12px;white-space:pre-wrap;margin-top:6px}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="topbar">
       <div class="title">Contrôle en temps réel de <code>/control</code> (Firebase)</div>
-      <div style="display:flex; align-items:center; gap:10px;">
+      <div style="display:flex;align-items:center;gap:10px">
         <span id="authLabel" class="muted"></span>
         <button id="btnIn" class="btn" style="display:none">Se connecter</button>
         <button id="btnOut" class="btn" style="display:none">Se déconnecter</button>
@@ -49,38 +42,35 @@
       <div class="grid">
         <div class="card">
           <label>Pouls (HR, bpm)</label>
-          <div class="row">
-            <input id="hr" type="number" min="0" max="240" step="1" value="76">
-            <button id="hrSave" class="btn">Enregistrer</button>
-          </div>
+          <div class="row"><input id="hr" type="number" min="0" max="240" step="1" value="76"><button id="hrSave" class="btn">Enregistrer</button></div>
           <div id="hrStatus" class="status"></div>
         </div>
         <div class="card">
           <label>SpO₂ (%)</label>
-          <div class="row">
-            <input id="spo2" type="number" min="0" max="100" step="1" value="98">
-            <button id="spo2Save" class="btn">Enregistrer</button>
-          </div>
+          <div class="row"><input id="spo2" type="number" min="0" max="100" step="1" value="98"><button id="spo2Save" class="btn">Enregistrer</button></div>
           <div id="spo2Status" class="status"></div>
         </div>
         <div class="card">
           <label>FR (rpm)</label>
-          <div class="row">
-            <input id="rr" type="number" min="0" max="60" step="1" value="16">
-            <button id="rrSave" class="btn">Enregistrer</button>
-          </div>
+          <div class="row"><input id="rr" type="number" min="0" max="60" step="1" value="16"><button id="rrSave" class="btn">Enregistrer</button></div>
           <div id="rrStatus" class="status"></div>
         </div>
         <div class="card">
           <label>NIBP (mmHg)</label>
           <div class="row">
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
               <input id="bpSys" type="number" min="0" max="260" step="1" value="120" placeholder="SYS">
               <input id="bpDia" type="number" min="0" max="200" step="1" value="70" placeholder="DIA">
             </div>
             <button id="bpSave" class="btn">Enregistrer</button>
           </div>
           <div id="bpStatus" class="status"></div>
+        </div>
+        <div class="card">
+          <label>Température (°C)</label>
+          <div class="row"><input id="temp" type="number" min="30" max="45" step="0.1" value="37.0"><button id="tempSave" class="btn">Enregistrer</button></div>
+          <div class="status muted">Norme 36.0 – 37.5°C</div>
+          <div id="tempStatus" class="status"></div>
         </div>
       </div>
     </div>
@@ -92,45 +82,46 @@
         <div class="chip" id="flatOff">Reprise courbes</div>
         <div class="chip" id="alarmOn">Alarme ON</div>
         <div class="chip" id="alarmOff">Alarme OFF</div>
-        <div class="chip" id="presetStable">Preset: Stable</div>
+        <div class="chip" id="presetStable">Preset: Normal</div>
         <div class="chip" id="presetTachy">Preset: Tachy</div>
       </div>
       <div id="actionsStatus" class="status"></div>
     </div>
 
     <div class="panel">
-      <div class="title" style="margin-bottom:8px">Voix off (appuie pour annoncer)</div>
+      <div class="title" style="margin-bottom:8px">Voix off</div>
       <div class="chips">
-        <div class="chip" data-voice="Ballancement thoraco-abdominal">Ballancement thoraco‑abdominal</div>
+        <div class="chip" data-voice="Ballancement thoraco-abdominal">Ballancement thoraco-abdominal</div>
         <div class="chip" data-voice="Battement des ailes du nez">Battement des ailes du nez</div>
         <div class="chip" data-voice="Tirage présent">Tirage présent</div>
         <div class="chip" data-voice="Geignement respiratoire">Geignement respiratoire</div>
         <div class="chip" data-voice="Pas de signe de lutte respiratoire">Pas de signe de lutte respiratoire</div>
+        <div class="chip" data-voice="Marbrures">Marbrures</div>
+        <div class="chip" data-voice="Cyanose">Cyanose</div>
+        <div class="chip" data-voice="Pâleur">Pâleur</div>
       </div>
-      <div class="muted" style="margin-top:6px">Le scope parlera dès réception. (Le son doit être activé côté scope.)</div>
+      <div class="muted" style="margin-top:6px">Le scope parlera dès réception (son activé côté scope).</div>
     </div>
 
     <div class="panel">
       <div class="muted">Aperçu brut de <code>/control</code></div>
-      <pre id="live" style="background:#0b1220; border:1px solid var(--border); border-radius:10px; padding:12px; white-space:pre-wrap; margin-top:6px;">⏳ En attente…</pre>
+      <pre id="live">⏳ En attente…</pre>
       <div id="liveErr" class="status err"></div>
     </div>
   </div>
 
   <script type="module">
-    // 1) Config Firebase (remplace par la tienne)
     const firebaseConfig = {
-  "apiKey": "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
-  "authDomain": "control-panel-demo-59d4a.firebaseapp.com",
-  "databaseURL": "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
-  "projectId": "control-panel-demo-59d4a",
-  "storageBucket": "control-panel-demo-59d4a.firebasestorage.app",
-  "messagingSenderId": "1083381420391",
-  "appId": "1:1083381420391:web:0d042a134004655a40dfc2",
-  "measurementId": "G-CKXT2SWQVW"
-}
+      apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
+      authDomain: "control-panel-demo-59d4a.firebaseapp.com",
+      databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "control-panel-demo-59d4a",
+      storageBucket: "control-panel-demo-59d4a.firebasestorage.app",
+      messagingSenderId: "1083381420391",
+      appId: "1:1083381420391:web:0d042a134004655a40dfc2",
+      measurementId: "G-CKXT2SWQVW"
+    };
 
-    // 2) Imports Firebase
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
     import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
@@ -139,94 +130,51 @@
     const auth = getAuth(app);
     const db = getDatabase(app);
 
-    // 3) Auth UI
-    const btnIn = document.getElementById('btnIn');
-    const btnOut = document.getElementById('btnOut');
-    const authLabel = document.getElementById('authLabel');
-    const live = document.getElementById('live');
-    const liveErr = document.getElementById('liveErr');
-    const actionsStatus = document.getElementById('actionsStatus');
+    const btnIn=document.getElementById('btnIn'), btnOut=document.getElementById('btnOut'), authLabel=document.getElementById('authLabel');
+    const live=document.getElementById('live'), liveErr=document.getElementById('liveErr'), actionsStatus=document.getElementById('actionsStatus');
 
-    onAuthStateChanged(auth, (user) => {
-      if (user) { btnIn.style.display='none'; btnOut.style.display='inline-block'; authLabel.textContent=(user.displayName||user.email||user.uid); }
-      else { btnIn.style.display='inline-block'; btnOut.style.display='none'; authLabel.textContent=''; }
-    });
-    const provider = new GoogleAuthProvider();
-    btnIn.addEventListener('click', async () => {
-      try { await signInWithPopup(auth, provider); }
-      catch (e) {
-        if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
-          try { await signInWithRedirect(auth, provider); } catch (er) { alert(er.code + ': ' + er.message); }
-        } else {
-          alert(e.code + ': ' + e.message);
-        }
-      }
-    });
+    onAuthStateChanged(auth,(user)=>{ if(user){btnIn.style.display='none';btnOut.style.display='inline-block';authLabel.textContent=(user.displayName||user.email||user.uid);} else{btnIn.style.display='inline-block';btnOut.style.display='none';authLabel.textContent='';} });
+    const provider=new GoogleAuthProvider();
+    btnIn.addEventListener('click', async ()=>{ try{ await signInWithPopup(auth,provider); }catch(e){ if(e.code==='auth/popup-blocked'||e.code==='auth/cancelled-popup-request'){ try{ await signInWithRedirect(auth,provider);}catch(er){alert(er.code+': '+er.message);} }else{alert(e.code+': '+e.message);} } });
     btnOut.addEventListener('click', ()=>signOut(auth));
-    getRedirectResult(auth).catch(e => { if (e) alert(e.code + ': ' + e.message); });
+    getRedirectResult(auth).catch(e=>{ if(e) alert(e.code+': '+e.message); });
 
-    // 4) Refs champs
-    const ctrlRef = ref(db, 'control');
-    const el = (id)=>document.getElementById(id);
-    const hr = el('hr'), rr = el('rr'), spo2 = el('spo2'), bpSys = el('bpSys'), bpDia = el('bpDia');
-    const hrStatus = el('hrStatus'), rrStatus = el('rrStatus'), spo2Status = el('spo2Status'), bpStatus = el('bpStatus');
+    const ctrlRef = ref(db,'control');
+    const el=id=>document.getElementById(id);
+    const hr=el('hr'), rr=el('rr'), spo2=el('spo2'), bpSys=el('bpSys'), bpDia=el('bpDia'), temp=el('temp');
 
     async function write(partial, statusEl){
-      const user = auth.currentUser;
-      if (!user) { alert('Connectez-vous.'); return; }
-      await update(ctrlRef, { ...partial, _lastBy: user.uid, _at: Date.now() });
-      if (statusEl){ statusEl.textContent = '✔ Sauvegardé'; statusEl.className='status ok'; setTimeout(()=> statusEl.textContent='', 1200); }
+      const user=auth.currentUser; if(!user){ alert('Connectez-vous.'); return; }
+      await update(ctrlRef, { ...partial, _lastBy:user.uid, _at:Date.now() });
+      if(statusEl){ statusEl.textContent='✔ Sauvegardé'; statusEl.className='status ok'; setTimeout(()=>statusEl.textContent='',1200); }
     }
 
-    // Enregistrer valeurs
-    el('hrSave').addEventListener('click', ()=>{
-      let v = parseInt(hr.value, 10); v = Math.max(0, Math.min(240, isFinite(v)?v:0));
-      write({ hr: v });
-    });
-    el('rrSave').addEventListener('click', ()=>{
-      let v = parseInt(rr.value, 10); v = Math.max(0, Math.min(60, isFinite(v)?v:0));
-      write({ rr: v });
-    });
-    el('spo2Save').addEventListener('click', ()=>{
-      let v = parseInt(spo2.value, 10); v = Math.max(0, Math.min(100, isFinite(v)?v:0));
-      write({ spo2: v });
-    });
-    el('bpSave').addEventListener('click', ()=>{
-      let s = parseInt(bpSys.value, 10); let d = parseInt(bpDia.value, 10);
-      s = Math.max(0, Math.min(260, isFinite(s)?s:0));
-      d = Math.max(0, Math.min(200, isFinite(d)?d:0));
-      write({ bpSys: s, bpDia: d });
+    el('hrSave').addEventListener('click', ()=>{ let v=+hr.value||0; v=Math.max(0,Math.min(240,v)); write({hr:v}, el('hrStatus')); });
+    el('rrSave').addEventListener('click', ()=>{ let v=+rr.value||0; v=Math.max(0,Math.min(60,v)); write({rr:v}, el('rrStatus')); });
+    el('spo2Save').addEventListener('click', ()=>{ let v=+spo2.value||0; v=Math.max(0,Math.min(100,v)); write({spo2:v}, el('spo2Status')); });
+    el('bpSave').addEventListener('click', ()=>{ let s=+bpSys.value||0, d=+bpDia.value||0; s=Math.max(0,Math.min(260,s)); d=Math.max(0,Math.min(200,d)); write({bpSys:s,bpDia:d}, el('bpStatus')); });
+    el('tempSave').addEventListener('click', ()=>{ let t=+temp.value||0; t=Math.max(30,Math.min(45,t)); write({temp:t}, el('tempStatus')); });
+
+    el('flatOn').addEventListener('click', ()=> write({ flat:true }, actionsStatus));
+    el('flatOff').addEventListener('click', ()=> write({ flat:false }, actionsStatus));
+    el('alarmOn').addEventListener('click', ()=> write({ alarmEnabled:true }, actionsStatus));
+    el('alarmOff').addEventListener('click', ()=> write({ alarmEnabled:false }, actionsStatus));
+    el('presetStable').addEventListener('click', ()=> write({ spo2:95, hr:130, rr:30, temp:37.0, bpSys:70, bpDia:40, flat:false }, actionsStatus));
+    el('presetTachy').addEventListener('click', ()=> write({ hr:160, rr:28, spo2:92, temp:37.6, bpSys:90, bpDia:55, flat:false }, actionsStatus));
+
+    document.querySelectorAll('[data-voice]').forEach(btn=>{
+      btn.addEventListener('click', ()=> write({ voiceText: btn.getAttribute('data-voice'), voiceAt: Date.now() }, actionsStatus));
     });
 
-    // Actions
-    el('flatOn').addEventListener('click', ()=> write({ flat: true }));
-    el('flatOff').addEventListener('click', ()=> write({ flat: false }));
-    el('alarmOn').addEventListener('click', ()=> write({ alarmEnabled: true }));
-    el('alarmOff').addEventListener('click', ()=> write({ alarmEnabled: false }));
-    el('presetStable').addEventListener('click', ()=> write({ hr: 76, rr: 16, spo2: 98, bpSys: 120, bpDia: 70, flat: false }));
-    el('presetTachy').addEventListener('click', ()=> write({ hr: 130, rr: 24, spo2: 95, bpSys: 110, bpDia: 65, flat: false }));
-
-    // Voix off buttons
-    document.querySelectorAll('[data-voice]').forEach(btn => {
-      btn.addEventListener('click', ()=> {
-        const txt = btn.getAttribute('data-voice');
-        write({ voiceText: txt, voiceAt: Date.now() });
-      });
-    });
-
-    // Lecture live pour refléter UI
-    onValue(ctrlRef, (snap)=>{
-      const v = snap.val() || {};
-      live.textContent = JSON.stringify(v, null, 2);
-      if (typeof v.hr === 'number') hr.value = v.hr;
-      if (typeof v.rr === 'number') rr.value = v.rr;
-      if (typeof v.spo2 === 'number') spo2.value = v.spo2;
-      if (typeof v.bpSys === 'number') bpSys.value = v.bpSys;
-      if (typeof v.bpDia === 'number') bpDia.value = v.bpDia;
-      liveErr.textContent = '';
-    }, (e)=>{
-      liveErr.textContent = 'Lecture refusée: ' + (e.code || e.message);
-    });
+    onValue(ctrlRef,(snap)=>{ const v=snap.val()||{}; live.textContent=JSON.stringify(v,null,2);
+      if(typeof v.hr==='number') hr.value=v.hr;
+      if(typeof v.rr==='number') rr.value=v.rr;
+      if(typeof v.spo2==='number') spo2.value=v.spo2;
+      if(typeof v.bpSys==='number') bpSys.value=v.bpSys;
+      if(typeof v.bpDia==='number') bpDia.value=v.bpDia;
+      if(typeof v.temp==='number') temp.value=v.temp;
+      liveErr.textContent='';
+    }, (e)=> liveErr.textContent='Lecture refusée: '+(e.code||e.message));
   </script>
 </body>
 </html>
