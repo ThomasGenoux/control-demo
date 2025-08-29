@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Scope Vitals • Pro</title>
+  <title>Scope Vitals • Pro (patched)</title>
   <style>
     :root{
       --bg:#0b0f16; --panel:#10141f; --panel2:#0d111a; --border:#1c2434; --text:#e9eef6; --muted:#96a0b5;
@@ -57,14 +57,17 @@
       </div>
     </div>
 
+    <!-- ECG -->
     <div class="rowScope">
       <div class="scopePanel"><canvas id="ecg"></canvas></div>
       <div class="tile"><h4>HR</h4><div class="big" id="hrVal" style="color:var(--green)">—</div><div class="unit">bpm</div></div>
     </div>
+    <!-- Pleth -->
     <div class="rowScope">
       <div class="scopePanel"><canvas id="pleth"></canvas></div>
       <div class="tile"><h4>SpO₂</h4><div class="big" id="spo2Val" style="color:var(--blue)">—</div><div class="unit">%</div></div>
     </div>
+    <!-- Resp -->
     <div class="rowScope">
       <div class="scopePanel"><canvas id="resp"></canvas></div>
       <div class="tile"><h4>FR</h4><div class="big" id="rrVal" style="color:var(--yellow)">—</div><div class="unit">rpm</div></div>
@@ -76,11 +79,13 @@
         <div class="bpValue"><span id="bpSys">—</span> / <span id="bpDia">—</span></div>
         <div class="small">mmHg</div>
       </div>
+
       <div class="box">
         <div class="tLabel">Température</div>
         <div class="tValue" id="tempVal">—</div>
         <div class="small">°C</div>
       </div>
+
       <div class="box">
         <div style="display:flex;justify-content:space-between;align-items:center">
           <div>
@@ -99,16 +104,17 @@
   </div>
 
   <script type="module">
+    // ---- CONFIG FIREBASE ----
     const firebaseConfig = {
-  apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
-  authDomain: "control-panel-demo-59d4a.firebaseapp.com",
-  databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "control-panel-demo-59d4a",
-  storageBucket: "control-panel-demo-59d4a.firebasestorage.app",
-  messagingSenderId: "1083381420391",
-  appId: "1:1083381420391:web:0d042a134004655a40dfc2",
-  measurementId: "G-CKXT2SWQVW"
-};
+      apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
+      authDomain: "control-panel-demo-59d4a.firebaseapp.com",
+      databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "control-panel-demo-59d4a",
+      storageBucket: "control-panel-demo-59d4a.firebasestorage.app",
+      messagingSenderId: "1083381420391",
+      appId: "1:1083381420391:web:0d042a134004655a40dfc2",
+      measurementId: "G-CKXT2SWQVW"
+    };
 
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
     import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
@@ -118,6 +124,7 @@
     const db = getDatabase(app);
     const auth = getAuth(app);
 
+    // ---- UI refs ----
     const btnIn = document.getElementById('btnIn');
     const btnOut = document.getElementById('btnOut');
     const authLabel = document.getElementById('authLabel');
@@ -151,6 +158,7 @@
     btnOut.addEventListener('click', ()=>signOut(auth));
     getRedirectResult(auth).catch(e=>{ if(e) errEl.textContent=e.code+': '+e.message; });
 
+    // ---- Données + mise à jour UI ----
     const data = { hr:76, spo2:98, rr:16, bpSys:120, bpDia:70, temp:37.0, flat:false, alarmEnabled:true, voiceText:null, voiceAt:0 };
     function applyVitals(v){
       if(typeof v.hr==='number') data.hr=v.hr;
@@ -171,12 +179,10 @@
       bpSysEl.textContent = show0?0:(data.bpSys??'—');
       bpDiaEl.textContent = show0?0:(data.bpDia??'—');
       tempVal.textContent = show0?0:(Math.round((data.temp??0)*10)/10).toFixed(1);
-
-      scheduleAlarm();
-      maybeSpeak();
     }
     onValue(ref(db,'control'), (snap)=>{ applyVitals(snap.val()||{}); errEl.textContent=''; }, (e)=>{ errEl.textContent='Lecture refusée: '+(e.code||e.message); });
 
+    // ---- Canvas helpers ----
     function makeCanvas(id){
       const c=document.getElementById(id), ctx=c.getContext('2d');
       function resize(){
@@ -187,14 +193,19 @@
     }
     const ecg=makeCanvas('ecg'), pleth=makeCanvas('pleth'), resp=makeCanvas('resp');
 
+    // ---- Courbes (avec Math.pow pour éviter l'erreur "**") ----
     let t=0, last=performance.now(); const SPEED=0.18; const ECG_DENSITY=1.5;
     function drawECG(){
       const {c,ctx}=ecg, w=c.clientWidth, h=c.clientHeight; ctx.clearRect(0,0,w,h);
       ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--green').trim(); ctx.lineWidth=2; ctx.beginPath();
       const hz=((data.hr||60)/60)*ECG_DENSITY, spikeWidth=0.02;
       for(let x=0;x<w;x++){ const tt=t*SPEED+x/w, ph=(hz*tt)%1; let y=0;
-        if(!data.flat){ y+=0.02*Math.sin(2*Math.PI*8*tt); y+=0.06*Math.exp(-((ph-0.18)/0.03)**2);
-          y+=1.5*Math.exp(-((ph-0.25)/spikeWidth)**2) - 0.25*Math.exp(-((ph-0.24)/0.01)**2); y+=0.2*Math.exp(-((ph-0.5)/0.09)**2); }
+        if(!data.flat){
+          y+=0.02*Math.sin(2*Math.PI*8*tt);
+          y+=0.06*Math.exp(-Math.pow(((ph-0.18)/0.03),2));
+          y+=1.5*Math.exp(-Math.pow(((ph-0.25)/spikeWidth),2)) - 0.25*Math.exp(-Math.pow(((ph-0.24)/0.01),2));
+          y+=0.2*Math.exp(-Math.pow(((ph-0.5)/0.09),2));
+        }
         const yy=h*0.5 - y*(h*0.35); if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
       } ctx.stroke();
     }
@@ -203,7 +214,10 @@
       ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--blue').trim(); ctx.lineWidth=2; ctx.beginPath();
       const hz=(data.hr||60)/60;
       for(let x=0;x<w;x++){ const tt=t*SPEED+x/w, ph=(hz*tt)%1; let y=0.5;
-        if(!data.flat){ if(ph<0.15) y=0.5+(ph/0.15-0.5); else { const d=(ph-0.15)/0.85; y=0.5+Math.exp(-4*d)-0.5; } }
+        if(!data.flat){
+          if(ph<0.15) y=0.5+(ph/0.15-0.5);
+          else { const d=(ph-0.15)/0.85; y=0.5+Math.exp(-4*d)-0.5; }
+        }
         const yy=h*0.5-(y-0.5)*(h*0.6); if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
       } ctx.stroke();
     }
@@ -218,6 +232,7 @@
     function loop(now){ const dt=(now-last)/1000; last=now; t+=dt; drawECG(); drawPleth(); drawResp(); requestAnimationFrame(loop); }
     requestAnimationFrame(loop);
 
+    // Horloge + Chronomètre (identiques)
     function pad(n){return String(n).padStart(2,'0')}
     setInterval(()=>{ const d=new Date(); clockEl.textContent=`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; },200);
     let chronoStart=null, chronoTimer=null;
@@ -228,6 +243,7 @@
     });
     btnResetChrono.addEventListener('click', ()=>{ clearInterval(chronoTimer); chronoTimer=null; chronoEl.textContent='00:00'; btnChrono.textContent='Chronomètre ▶︎'; });
 
+    // Audio minimal (alarme uniquement) — inchangé
     let audioCtx, masterGain, alarmMuted=false;
     let volume=0.2;
     const btnAudio=document.getElementById('btnAudio'), volInput=document.getElementById('vol'), btnMute=document.getElementById('btnMute');
@@ -237,6 +253,7 @@
     volInput.addEventListener('input',()=>{ volume=+volInput.value/100; if(masterGain) masterGain.gain.value=volume; });
     btnMute.addEventListener('click',()=>{ alarmMuted=!alarmMuted; btnMute.textContent=alarmMuted?'Unmute alarmes':'Mute alarmes'; });
 
+    // Alarmes
     let alarmTimer=null;
     function alarmCondition(){
       const spo2=v(data.spo2), hr=v(data.hr), asystole=data.flat===true;
@@ -252,7 +269,10 @@
       const period = st.spo2Fast ? 700 : 1200;
       alarmTimer = setInterval(()=>{ tone(750,0.15); setTimeout(()=>tone(750,0.15),250); }, period);
     }
+    // relance planif après chaque maj vitale
+    onValue(ref(db,'control'), ()=>scheduleAlarm());
 
+    // Voix off (inchangé)
     let lastVoiceAt=0;
     function speak(text){
       try{
@@ -264,7 +284,9 @@
       }catch(e){ console.warn('Speech error',e); }
     }
     function maybeSpeak(){ if(typeof data.voiceAt==='number' && data.voiceAt>lastVoiceAt && data.voiceText){ lastVoiceAt=data.voiceAt; speak(data.voiceText); } }
+    onValue(ref(db,'control'), (snap)=>{ const v=snap.val()||{}; if(typeof v.voiceAt==='number'){ data.voiceText=v.voiceText; data.voiceAt=v.voiceAt; maybeSpeak(); } });
 
+    // Bouton NIBP
     btnNIBP.addEventListener('click', async ()=>{
       try{ await update(ref(db,'control'), { nibpRequestAt: Date.now() }); alarmBadge.style.display='inline-block'; setTimeout(()=>alarmBadge.style.display='none', 1000); }
       catch(e){ errEl.textContent='Demande NIBP: '+(e.code||e.message); }
