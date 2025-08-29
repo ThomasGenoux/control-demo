@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scope Vitals • FIX</title>
+  <style>
+    :root{ --bg:#0b0f16; --panel:#10141f; --border:#1c2434; --text:#e9eef6; --muted:#96a0b5; }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial}
+    .wrap{max-width:1280px;margin:24px auto;padding:12px}
+    .rowScope{display:grid;grid-template-columns:1fr 260px;gap:12px;margin-bottom:12px}
+    .scopePanel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px}
+    .tile{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;justify-content:center}
+    .tile h4{margin:0 0 6px;font-weight:600;color:var(--muted);letter-spacing:.3px}
+    .tile .big{font-size:56px;font-weight:800;line-height:1}
+    .tile .unit{color:var(--muted);margin-top:2px;font-size:14px}
+    canvas{width:100%;height:170px;display:block;background:#05090f;border-radius:10px}
+    .small{color:var(--muted);font-size:14px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin:6px 4px 14px}
+    .title{font-size:18px;color:var(--muted)}
+    #err{color:#ff7b7b}
+    @media (max-width:980px){.rowScope{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">Scope FIX – lecture directe de <code>/control</code></div>
+      <div class="small" id="err"></div>
+    </div>
+
+    <div class="rowScope">
+      <div class="scopePanel"><canvas id="ecg"></canvas></div>
+      <div class="tile"><h4>HR</h4><div class="big" id="hrVal" style="color:#31f39a">—</div><div class="unit">bpm</div></div>
+    </div>
+    <div class="rowScope">
+      <div class="scopePanel"><canvas id="pleth"></canvas></div>
+      <div class="tile"><h4>SpO₂</h4><div class="big" id="spo2Val" style="color:#61b5ff">—</div><div class="unit">%</div></div>
+    </div>
+    <div class="rowScope">
+      <div class="scopePanel"><canvas id="resp"></canvas></div>
+      <div class="tile"><h4>FR</h4><div class="big" id="rrVal" style="color:#f6cf55">—</div><div class="unit">rpm</div></div>
+    </div>
+  </div>
+
+  <script type="module">
+    // ---- CONFIG FIREBASE ----
+    const firebaseConfig = {
+      apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
+      authDomain: "control-panel-demo-59d4a.firebaseapp.com",
+      databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "control-panel-demo-59d4a",
+      storageBucket: "control-panel-demo-59d4a.firebasestorage.app",
+      messagingSenderId: "1083381420391",
+      appId: "1:1083381420391:web:0d042a134004655a40dfc2",
+      measurementId: "G-CKXT2SWQVW"
+    };
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const errEl = document.getElementById('err');
+
+    // Live data
+    const data = { hr:76, spo2:98, rr:16, flat:false };
+    function apply(v={}){
+      if(typeof v.hr === 'number') data.hr = v.hr;
+      if(typeof v.spo2 === 'number') data.spo2 = v.spo2;
+      if(typeof v.rr === 'number') data.rr = v.rr;
+      if(typeof v.flat === 'boolean') data.flat = v.flat;
+      document.getElementById('hrVal').textContent   = data.flat?0:Math.round(data.hr);
+      document.getElementById('spo2Val').textContent = data.flat?0:Math.round(data.spo2);
+      document.getElementById('rrVal').textContent   = data.flat?0:Math.round(data.rr);
+    }
+    onValue(ref(db,'control'), (snap)=>{ apply(snap.val()||{}); errEl.textContent=''; },
+      (e)=>{ errEl.textContent = 'Lecture refusée: ' + (e.code||e.message); });
+
+    // Canvas setup robust
+    function setupCanvas(id){
+      const c = document.getElementById(id);
+      const ctx = c.getContext('2d');
+      function resize(){
+        const dpr = window.devicePixelRatio || 1;
+        const w = Math.max(1, c.clientWidth);
+        const h = Math.max(1, c.clientHeight);
+        c.width  = Math.floor(w * dpr);
+        c.height = Math.floor(h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      resize(); addEventListener('resize', resize);
+      return { c, ctx };
+    }
+    const ecg = setupCanvas('ecg');
+    const pleth = setupCanvas('pleth');
+    const resp = setupCanvas('resp');
+
+    // Draw simplified stable curves
+    let t = 0, last = performance.now();
+    function drawECG(){
+      const {c,ctx}=ecg, W=c.clientWidth, H=c.clientHeight;
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle = '#31f39a'; ctx.lineWidth = 2; ctx.beginPath();
+      const hz = Math.max(0.5, (data.hr||60)/60); // beats per second
+      for(let x=0;x<W;x++){
+        const tt = t*0.18 + x/W;
+        const ph = (hz*tt)%1;
+        let y = 0;
+        if(!data.flat){
+          // simple ECG-like: baseline + P + sharp QRS + T
+          y += 0.03*Math.sin(2*Math.PI*8*tt);
+          y += 0.12*Math.exp(-((ph-0.22)/0.03)**2);
+          y += 1.8*Math.exp(-((ph-0.25)/0.015)**2) - 0.3*Math.exp(-((ph-0.24)/0.008)**2);
+          y += 0.25*Math.exp(-((ph-0.5)/0.08)**2);
+        }
+        const yy = H*0.5 - y*(H*0.32);
+        if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+      }
+      ctx.stroke();
+    }
+    function drawPleth(){
+      const {c,ctx}=pleth, W=c.clientWidth, H=c.clientHeight;
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle = '#61b5ff'; ctx.lineWidth = 2; ctx.beginPath();
+      const hz = Math.max(0.5, (data.hr||60)/60);
+      for(let x=0;x<W;x++){
+        const tt = t*0.18 + x/W; const ph=(hz*tt)%1;
+        let y=0.5;
+        if(!data.flat){
+          if(ph<0.15) y = 0.5 + (ph/0.15 - 0.5);
+          else { const d=(ph-0.15)/0.85; y = 0.5 + Math.exp(-4*d) - 0.5; }
+        }
+        const yy = H*0.5 - (y-0.5)*(H*0.6);
+        if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+      }
+      ctx.stroke();
+    }
+    function drawResp(){
+      const {c,ctx}=resp, W=c.clientWidth, H=c.clientHeight;
+      ctx.clearRect(0,0,W,H);
+      ctx.strokeStyle = '#f6cf55'; ctx.lineWidth = 2; ctx.beginPath();
+      const hz = Math.max(0.2, (data.rr||12)/60);
+      for(let x=0;x<W;x++){
+        const tt = t*0.18 + x/W;
+        const y = data.flat ? 0 : Math.sin(2*Math.PI*hz*tt);
+        const yy = H*0.5 - y*(H*0.38);
+        if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+      }
+      ctx.stroke();
+    }
+
+    function loop(now){
+      const dt=(now-last)/1000; last=now; t+=dt;
+      drawECG(); drawPleth(); drawResp();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
