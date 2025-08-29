@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scope Vitals • DEBUG FIX</title>
+<style>
+  :root{ --bg:#0b0f16; --panel:#10141f; --border:#1c2434; --text:#e9eef6; --muted:#96a0b5;
+         --green:#31f39a; --blue:#61b5ff; --yellow:#f6cf55; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Segoe UI,Roboto,Arial}
+  .wrap{max-width:1280px;margin:24px auto;padding:12px}
+  .row{display:grid;grid-template-columns:1fr 260px;gap:12px;margin-bottom:12px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px}
+  .tile{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px}
+  .tile h4{margin:0 0 6px;color:var(--muted)}
+  .tile .big{font-size:56px;font-weight:800;line-height:1}
+  canvas{display:block;width:100%;height:170px;background:#05090f;border-radius:10px}
+  .small{color:var(--muted);font-size:14px}
+  #err{color:#ff7b7b}
+  @media (max-width:980px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="small">DEBUG: si vous voyez une grille animée dans chaque canvas, le rendu fonctionne.</div>
+  <div class="small">Statut: <span id="stat">init…</span></div>
+  <div id="err" class="small"></div>
+
+  <div class="row">
+    <div class="panel"><canvas id="ecg"></canvas></div>
+    <div class="tile"><h4>HR</h4><div id="hrVal" class="big" style="color:var(--green)">—</div><div class="small">bpm</div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><canvas id="pleth"></canvas></div>
+    <div class="tile"><h4>SpO₂</h4><div id="spo2Val" class="big" style="color:var(--blue)">—</div><div class="small">%</div></div>
+  </div>
+  <div class="row">
+    <div class="panel"><canvas id="resp"></canvas></div>
+    <div class="tile"><h4>FR</h4><div id="rrVal" class="big" style="color:var(--yellow)">—</div><div class="small">rpm</div></div>
+  </div>
+</div>
+
+<script type="module">
+const firebaseConfig = {
+  apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
+  authDomain: "control-panel-demo-59d4a.firebaseapp.com",
+  databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "control-panel-demo-59d4a",
+  storageBucket: "control-panel-demo-59d4a.firebasestorage.app",
+  messagingSenderId: "1083381420391",
+  appId: "1:1083381420391:web:0d042a134004655a40dfc2",
+  measurementId: "G-CKXT2SWQVW"
+};
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+const stat = document.getElementById('stat');
+const errEl = document.getElementById('err');
+
+const data = { hr:76, spo2:98, rr:16, flat:false };
+function apply(v={}){
+  if(typeof v.hr==='number') data.hr=v.hr;
+  if(typeof v.spo2==='number') data.spo2=v.spo2;
+  if(typeof v.rr==='number') data.rr=v.rr;
+  if(typeof v.flat==='boolean') data.flat=v.flat;
+  document.getElementById('hrVal').textContent = data.flat?0:Math.round(data.hr);
+  document.getElementById('spo2Val').textContent = data.flat?0:Math.round(data.spo2);
+  document.getElementById('rrVal').textContent = data.flat?0:Math.round(data.rr);
+}
+onValue(ref(db,'control'), (snap)=>{ apply(snap.val()||{}); stat.textContent='✅ lecture live OK'; },
+  (e)=>{ errEl.textContent = 'Lecture refusée: '+(e.code||e.message); });
+
+function setup(id){
+  const c=document.getElementById(id), ctx=c.getContext('2d');
+  function resize(){
+    const w=c.clientWidth, h=c.clientHeight, dpr=1; // no DPI scaling to avoid bugs
+    c.width=w; c.height=h; ctx.setTransform(1,0,0,1,0,0);
+  }
+  resize(); addEventListener('resize', resize);
+  return { c, ctx };
+}
+const ecg = setup('ecg');
+const pleth = setup('pleth');
+const resp = setup('resp');
+
+function drawGrid(ctx,W,H,offset){
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  ctx.strokeStyle = '#223045';
+  ctx.lineWidth = 1;
+  const step = 25;
+  ctx.beginPath();
+  for(let x=((offset%step)+step)%step; x<=W; x+=step){ ctx.moveTo(x,0); ctx.lineTo(x,H); }
+  for(let y=((offset%step)+step)%step; y<=H; y+=step){ ctx.moveTo(0,y); ctx.lineTo(W,y); }
+  ctx.stroke();
+  ctx.restore();
+}
+
+let t=0, last=performance.now();
+function render(){
+  const now=performance.now(); const dt=(now-last)/1000; last=now; t+=dt;
+  // ECG
+  (function(){
+    const {c,ctx}=ecg, W=c.width, H=c.height;
+    ctx.clearRect(0,0,W,H);
+    drawGrid(ctx,W,H, (t*50)%25);
+    ctx.strokeStyle = '#31f39a'; ctx.lineWidth=2; ctx.beginPath();
+    const hz=(Math.max(30, data.hr)/60);
+    for(let x=0;x<W;x++){
+      const ph=(hz*(t*0.2 + x/W))%1; let y=0;
+      if(!data.flat){
+        y += 0.03*Math.sin(2*Math.PI*8*(t + x/W));
+        y += 0.12*Math.exp(-((ph-0.22)/0.03)**2);
+        y += 1.8*Math.exp(-((ph-0.25)/0.015)**2) - 0.3*Math.exp(-((ph-0.24)/0.008)**2);
+        y += 0.25*Math.exp(-((ph-0.5)/0.08)**2);
+      }
+      const yy = H*0.5 - y*(H*0.32);
+      if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+    }
+    ctx.stroke();
+  })();
+  // Pleth
+  (function(){
+    const {c,ctx}=pleth, W=c.width, H=c.height;
+    ctx.clearRect(0,0,W,H);
+    drawGrid(ctx,W,H, (t*50)%25);
+    ctx.strokeStyle = '#61b5ff'; ctx.lineWidth=2; ctx.beginPath();
+    const hz=(Math.max(30, data.hr)/60);
+    for(let x=0;x<W;x++){
+      const ph=(hz*(t*0.2 + x/W))%1; let y=0.5;
+      if(!data.flat){
+        if(ph<0.15) y=0.5+(ph/0.15-0.5); else { const d=(ph-0.15)/0.85; y=0.5+Math.exp(-4*d)-0.5; }
+      }
+      const yy=H*0.5-(y-0.5)*(H*0.6);
+      if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+    }
+    ctx.stroke();
+  })();
+  // Resp
+  (function(){
+    const {c,ctx}=resp, W=c.width, H=c.height;
+    ctx.clearRect(0,0,W,H);
+    drawGrid(ctx,W,H, (t*50)%25);
+    ctx.strokeStyle = '#f6cf55'; ctx.lineWidth=2; ctx.beginPath();
+    const hz=(Math.max(6, data.rr)/60);
+    for(let x=0;x<W;x++){
+      const y = data.flat ? 0 : Math.sin(2*Math.PI*hz*(t*0.2 + x/W));
+      const yy = H*0.5 - y*(H*0.38);
+      if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+    }
+    ctx.stroke();
+  })();
+
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
