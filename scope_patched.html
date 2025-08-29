@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Scope Vitals • Pro (patched)</title>
+  <style>
+    :root{
+      --bg:#0b0f16; --panel:#10141f; --panel2:#0d111a; --border:#1c2434; --text:#e9eef6; --muted:#96a0b5;
+      --green:#31f39a; --blue:#61b5ff; --yellow:#f6cf55; --danger:#ff7b7b;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial}
+    .wrap{max-width:1280px;margin:24px auto;padding:12px}
+    .rowScope{display:grid;grid-template-columns:1fr 260px;gap:12px;margin-bottom:12px}
+    .scopePanel{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px}
+    .tile{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;justify-content:center}
+    .tile h4{margin:0 0 6px;font-weight:600;color:var(--muted);letter-spacing:.3px}
+    .tile .big{font-size:56px;font-weight:800;line-height:1}
+    .tile .unit{color:var(--muted);margin-top:2px;font-size:14px}
+    canvas{width:100%;height:170px;display:block;background:#05090f;border-radius:10px}
+    .foot{display:grid;grid-template-columns:1fr 200px 320px;gap:12px;margin-top:12px}
+    .box{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:16px}
+    .bpLabel,.tLabel{color:var(--muted);font-size:14px;margin-bottom:4px;letter-spacing:.3px}
+    .bpValue{font-size:54px;font-weight:900}
+    .tValue{font-size:32px;font-weight:800}
+    .clockTime{font-size:36px;font-weight:800}
+    .small{color:var(--muted);font-size:14px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;margin:6px 4px 14px}
+    .title{font-size:18px;color:var(--muted)}
+    .btn{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:#12182a;color:var(--text);cursor:pointer}
+    .btn:hover{filter:brightness(1.1)}
+    .warn{color:var(--danger);font-weight:600}
+    .badge{display:inline-block;padding:4px 8px;border:1px solid var(--border);border-radius:999px;background:#12182a;margin-left:8px}
+    .rowBtns{display:flex;gap:8px;flex-wrap:wrap}
+    @media (max-width:1100px){.foot{grid-template-columns:1fr 1fr}.rowScope{grid-template-columns:1fr}}
+    @media (max-width:780px){.foot{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div class="title">Lecture en direct de <code>/control</code> (Firebase)
+        <span id="alarmBadge" class="badge" style="display:none">Alarme</span>
+      </div>
+      <div class="rowBtns">
+        <span id="authLabel" class="small"></span>
+        <button id="btnIn" class="btn" style="display:none">Se connecter</button>
+        <button id="btnOut" class="btn" style="display:none">Se déconnecter</button>
+        <button id="btnAudio" class="btn">🔊 Activer son</button>
+        <label class="small" style="align-self:center">Vol</label>
+        <input id="vol" type="range" min="0" max="100" value="20" style="vertical-align:middle;width:120px">
+        <button id="btnMute" class="btn" title="Couper UNIQUEMENT les alarmes">Mute alarmes</button>
+        <button id="btnNIBP" class="btn" title="Demander une mesure tension">Demande de tension</button>
+        <button id="btnChrono" class="btn" title="Démarrer/Arrêter le chronomètre">Chronomètre ▶︎</button>
+        <button id="btnResetChrono" class="btn" title="Remettre à zéro">↺</button>
+      </div>
+    </div>
+
+    <!-- ECG -->
+    <div class="rowScope">
+      <div class="scopePanel"><canvas id="ecg"></canvas></div>
+      <div class="tile"><h4>HR</h4><div class="big" id="hrVal" style="color:var(--green)">—</div><div class="unit">bpm</div></div>
+    </div>
+    <!-- Pleth -->
+    <div class="rowScope">
+      <div class="scopePanel"><canvas id="pleth"></canvas></div>
+      <div class="tile"><h4>SpO₂</h4><div class="big" id="spo2Val" style="color:var(--blue)">—</div><div class="unit">%</div></div>
+    </div>
+    <!-- Resp -->
+    <div class="rowScope">
+      <div class="scopePanel"><canvas id="resp"></canvas></div>
+      <div class="tile"><h4>FR</h4><div class="big" id="rrVal" style="color:var(--yellow)">—</div><div class="unit">rpm</div></div>
+    </div>
+
+    <div class="foot">
+      <div class="box">
+        <div class="bpLabel">NIBP</div>
+        <div class="bpValue"><span id="bpSys">—</span> / <span id="bpDia">—</span></div>
+        <div class="small">mmHg</div>
+      </div>
+
+      <div class="box">
+        <div class="tLabel">Température</div>
+        <div class="tValue" id="tempVal">—</div>
+        <div class="small">°C</div>
+      </div>
+
+      <div class="box">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div class="small">Horodatage</div>
+            <div class="clockTime" id="clock">--:--:--</div>
+            <div class="small">local time</div>
+          </div>
+          <div style="text-align:right">
+            <div class="small">Chrono</div>
+            <div class="clockTime" id="chrono">00:00</div>
+          </div>
+        </div>
+        <div id="err" class="small warn" style="margin-top:8px"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    // ---- CONFIG FIREBASE ----
+    const firebaseConfig = {
+      apiKey: "AIzaSyBNix7CGySLt3ztIp3h4GyUfi1YGTuIbvA",
+      authDomain: "control-panel-demo-59d4a.firebaseapp.com",
+      databaseURL: "https://control-panel-demo-59d4a-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "control-panel-demo-59d4a",
+      storageBucket: "control-panel-demo-59d4a.firebasestorage.app",
+      messagingSenderId: "1083381420391",
+      appId: "1:1083381420391:web:0d042a134004655a40dfc2",
+      measurementId: "G-CKXT2SWQVW"
+    };
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+    const auth = getAuth(app);
+
+    // ---- UI refs ----
+    const btnIn = document.getElementById('btnIn');
+    const btnOut = document.getElementById('btnOut');
+    const authLabel = document.getElementById('authLabel');
+    const errEl = document.getElementById('err');
+    const hrVal = document.getElementById('hrVal');
+    const spo2Val = document.getElementById('spo2Val');
+    const rrVal = document.getElementById('rrVal');
+    const bpSysEl = document.getElementById('bpSys');
+    const bpDiaEl = document.getElementById('bpDia');
+    const tempVal = document.getElementById('tempVal');
+    const clockEl = document.getElementById('clock');
+    const chronoEl = document.getElementById('chrono');
+    const alarmBadge = document.getElementById('alarmBadge');
+    const btnNIBP = document.getElementById('btnNIBP');
+    const btnChrono = document.getElementById('btnChrono');
+    const btnResetChrono = document.getElementById('btnResetChrono');
+
+    onAuthStateChanged(auth,(user)=>{
+      if(user){ btnIn.style.display='none'; btnOut.style.display='inline-block'; authLabel.textContent=(user.displayName||user.email||user.uid); }
+      else    { btnIn.style.display='inline-block'; btnOut.style.display='none'; authLabel.textContent=''; }
+    });
+    const provider = new GoogleAuthProvider();
+    btnIn.addEventListener('click', async ()=>{
+      try{ await signInWithPopup(auth,provider); }
+      catch(e){
+        if(e.code==='auth/popup-blocked' || e.code==='auth/cancelled-popup-request'){
+          try{ await signInWithRedirect(auth,provider); } catch(er){ errEl.textContent=er.code+': '+er.message; }
+        }else{ errEl.textContent=e.code+': '+e.message; }
+      }
+    });
+    btnOut.addEventListener('click', ()=>signOut(auth));
+    getRedirectResult(auth).catch(e=>{ if(e) errEl.textContent=e.code+': '+e.message; });
+
+    // ---- Données + mise à jour UI ----
+    const data = { hr:76, spo2:98, rr:16, bpSys:120, bpDia:70, temp:37.0, flat:false, alarmEnabled:true, voiceText:null, voiceAt:0 };
+    function applyVitals(v){
+      if(typeof v.hr==='number') data.hr=v.hr;
+      if(typeof v.spo2==='number') data.spo2=v.spo2;
+      if(typeof v.rr==='number') data.rr=v.rr;
+      if(typeof v.bpSys==='number') data.bpSys=v.bpSys;
+      if(typeof v.bpDia==='number') data.bpDia=v.bpDia;
+      if(typeof v.temp==='number') data.temp=v.temp;
+      if(typeof v.flat==='boolean') data.flat=v.flat;
+      if(typeof v.alarmEnabled==='boolean') data.alarmEnabled=v.alarmEnabled;
+      if(typeof v.voiceText==='string') data.voiceText=v.voiceText;
+      if(typeof v.voiceAt==='number') data.voiceAt=v.voiceAt;
+
+      const show0 = data.flat===true;
+      hrVal.textContent   = show0?0:Math.round(data.hr);
+      spo2Val.textContent = show0?0:Math.round(data.spo2);
+      rrVal.textContent   = show0?0:Math.round(data.rr);
+      bpSysEl.textContent = show0?0:(data.bpSys??'—');
+      bpDiaEl.textContent = show0?0:(data.bpDia??'—');
+      tempVal.textContent = show0?0:(Math.round((data.temp??0)*10)/10).toFixed(1);
+    }
+    onValue(ref(db,'control'), (snap)=>{ applyVitals(snap.val()||{}); errEl.textContent=''; }, (e)=>{ errEl.textContent='Lecture refusée: '+(e.code||e.message); });
+
+    // ---- Canvas helpers ----
+    function makeCanvas(id){
+      const c=document.getElementById(id), ctx=c.getContext('2d');
+      function resize(){
+        const r=window.devicePixelRatio||1, w=c.clientWidth, h=c.clientHeight;
+        c.width=Math.max(1,Math.floor(w*r)); c.height=Math.max(1,Math.floor(h*r)); ctx.setTransform(r,0,0,r,0,0);
+      }
+      resize(); window.addEventListener('resize',resize); return {c,ctx};
+    }
+    const ecg=makeCanvas('ecg'), pleth=makeCanvas('pleth'), resp=makeCanvas('resp');
+
+    // ---- Courbes (avec Math.pow pour éviter l'erreur "**") ----
+    let t=0, last=performance.now(); const SPEED=0.18; const ECG_DENSITY=1.5;
+    function drawECG(){
+      const {c,ctx}=ecg, w=c.clientWidth, h=c.clientHeight; ctx.clearRect(0,0,w,h);
+      ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--green').trim(); ctx.lineWidth=2; ctx.beginPath();
+      const hz=((data.hr||60)/60)*ECG_DENSITY, spikeWidth=0.02;
+      for(let x=0;x<w;x++){ const tt=t*SPEED+x/w, ph=(hz*tt)%1; let y=0;
+        if(!data.flat){
+          y+=0.02*Math.sin(2*Math.PI*8*tt);
+          y+=0.06*Math.exp(-Math.pow(((ph-0.18)/0.03),2));
+          y+=1.5*Math.exp(-Math.pow(((ph-0.25)/spikeWidth),2)) - 0.25*Math.exp(-Math.pow(((ph-0.24)/0.01),2));
+          y+=0.2*Math.exp(-Math.pow(((ph-0.5)/0.09),2));
+        }
+        const yy=h*0.5 - y*(h*0.35); if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+      } ctx.stroke();
+    }
+    function drawPleth(){
+      const {c,ctx}=pleth, w=c.clientWidth, h=c.clientHeight; ctx.clearRect(0,0,w,h);
+      ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--blue').trim(); ctx.lineWidth=2; ctx.beginPath();
+      const hz=(data.hr||60)/60;
+      for(let x=0;x<w;x++){ const tt=t*SPEED+x/w, ph=(hz*tt)%1; let y=0.5;
+        if(!data.flat){
+          if(ph<0.15) y=0.5+(ph/0.15-0.5);
+          else { const d=(ph-0.15)/0.85; y=0.5+Math.exp(-4*d)-0.5; }
+        }
+        const yy=h*0.5-(y-0.5)*(h*0.6); if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+      } ctx.stroke();
+    }
+    function drawResp(){
+      const {c,ctx}=resp, w=c.clientWidth, h=c.clientHeight; ctx.clearRect(0,0,w,h);
+      ctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--yellow').trim(); ctx.lineWidth=2; ctx.beginPath();
+      const hz=(data.rr||12)/60;
+      for(let x=0;x<w;x++){ const tt=t*SPEED+x/w; let y=data.flat?0:Math.sin(2*Math.PI*hz*tt);
+        const yy=h*0.5 - y*(h*0.4); if(x===0) ctx.moveTo(x,yy); else ctx.lineTo(x,yy);
+      } ctx.stroke();
+    }
+    function loop(now){ const dt=(now-last)/1000; last=now; t+=dt; drawECG(); drawPleth(); drawResp(); requestAnimationFrame(loop); }
+    requestAnimationFrame(loop);
+
+    // Horloge + Chronomètre (identiques)
+    function pad(n){return String(n).padStart(2,'0')}
+    setInterval(()=>{ const d=new Date(); clockEl.textContent=`${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; },200);
+    let chronoStart=null, chronoTimer=null;
+    function renderChrono(){ const ms=Date.now()-chronoStart; const m=Math.floor(ms/60000), s=Math.floor((ms%60000)/1000); chronoEl.textContent=`${pad(m)}:${pad(s)}`; }
+    btnChrono.addEventListener('click', ()=>{
+      if(chronoTimer){ clearInterval(chronoTimer); chronoTimer=null; btnChrono.textContent='Chronomètre ▶︎'; }
+      else{ chronoStart=Date.now(); chronoTimer=setInterval(renderChrono,200); btnChrono.textContent='Chronomètre ❚❚'; renderChrono(); }
+    });
+    btnResetChrono.addEventListener('click', ()=>{ clearInterval(chronoTimer); chronoTimer=null; chronoEl.textContent='00:00'; btnChrono.textContent='Chronomètre ▶︎'; });
+
+    // Audio minimal (alarme uniquement) — inchangé
+    let audioCtx, masterGain, alarmMuted=false;
+    let volume=0.2;
+    const btnAudio=document.getElementById('btnAudio'), volInput=document.getElementById('vol'), btnMute=document.getElementById('btnMute');
+    function ensureAudio(){ if(!audioCtx){ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); masterGain=audioCtx.createGain(); masterGain.gain.value=volume; masterGain.connect(audioCtx.destination); } if(audioCtx.state==='suspended') audioCtx.resume(); }
+    function tone(freq=1000,dur=0.12){ if(!audioCtx || alarmMuted) return; const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type='square'; o.frequency.value=freq; g.gain.value=0.0001; o.connect(g); g.connect(masterGain); const now=audioCtx.currentTime; g.gain.setValueAtTime(0,now); g.gain.linearRampToValueAtTime(volume,now+0.01); g.gain.exponentialRampToValueAtTime(1e-4,now+dur); o.start(now); o.stop(now+dur+0.02); }
+    btnAudio.addEventListener('click',()=>ensureAudio());
+    volInput.addEventListener('input',()=>{ volume=+volInput.value/100; if(masterGain) masterGain.gain.value=volume; });
+    btnMute.addEventListener('click',()=>{ alarmMuted=!alarmMuted; btnMute.textContent=alarmMuted?'Unmute alarmes':'Mute alarmes'; });
+
+    // Alarmes
+    let alarmTimer=null;
+    function alarmCondition(){
+      const spo2=v(data.spo2), hr=v(data.hr), asystole=data.flat===true;
+      return { on: ( (spo2!==null && (spo2<88)) || (hr!==null && (hr<100 || hr>180)) || asystole ) && (data.alarmEnabled===true),
+               spo2Fast: (spo2!==null && spo2<80) };
+      function v(x){ return typeof x==='number' ? x : null; }
+    }
+    function scheduleAlarm(){
+      clearInterval(alarmTimer);
+      const st = alarmCondition();
+      alarmBadge.style.display = st.on ? 'inline-block' : 'none';
+      if(!st.on || !audioCtx || alarmMuted) return;
+      const period = st.spo2Fast ? 700 : 1200;
+      alarmTimer = setInterval(()=>{ tone(750,0.15); setTimeout(()=>tone(750,0.15),250); }, period);
+    }
+    // relance planif après chaque maj vitale
+    onValue(ref(db,'control'), ()=>scheduleAlarm());
+
+    // Voix off (inchangé)
+    let lastVoiceAt=0;
+    function speak(text){
+      try{
+        const u=new SpeechSynthesisUtterance(text);
+        const fr=speechSynthesis.getVoices().find(v=>v.lang.toLowerCase().startsWith('fr'));
+        if(fr) u.voice=fr;
+        u.rate=1; u.pitch=1; u.volume=Math.max(0.1, volume);
+        speechSynthesis.cancel(); speechSynthesis.speak(u);
+      }catch(e){ console.warn('Speech error',e); }
+    }
+    function maybeSpeak(){ if(typeof data.voiceAt==='number' && data.voiceAt>lastVoiceAt && data.voiceText){ lastVoiceAt=data.voiceAt; speak(data.voiceText); } }
+    onValue(ref(db,'control'), (snap)=>{ const v=snap.val()||{}; if(typeof v.voiceAt==='number'){ data.voiceText=v.voiceText; data.voiceAt=v.voiceAt; maybeSpeak(); } });
+
+    // Bouton NIBP
+    btnNIBP.addEventListener('click', async ()=>{
+      try{ await update(ref(db,'control'), { nibpRequestAt: Date.now() }); alarmBadge.style.display='inline-block'; setTimeout(()=>alarmBadge.style.display='none', 1000); }
+      catch(e){ errEl.textContent='Demande NIBP: '+(e.code||e.message); }
+    });
+  </script>
+</body>
+</html>
